@@ -1,0 +1,34 @@
+[Unit]
+Description=Claude Memory API Service
+After=network.target
+
+[Service]
+Type=notify
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/claude-memory-api
+ExecStart=/usr/bin/dotnet /opt/claude-memory-api/ClaudeMemoryApi.dll
+
+# Environment variables
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=ASPNETCORE_URLS=http://localhost:5000
+Environment=Memory__DataDirectory=/var/lib/claude-memory
+Environment=Memory__StorageEngine=simple
+Environment=Memory__EnableDeduplication=true
+Environment=Memory__DeduplicationMode=mark
+
+# Restart policy
+Restart=on-failure
+RestartSec=10
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=claude-memory-api
+
+[Install]
+WantedBy=multi-user.target

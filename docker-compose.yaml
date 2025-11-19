@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  claude-memory-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: claude-memory-api
+    ports:
+      - "5000:5000"
+    volumes:
+      # Map host directory to container data directory for persistence
+      - ./data:/data
+    environment:
+      # Storage configuration
+      - Memory__DataDirectory=/data
+      - Memory__StorageEngine=simple
+      # Scoring weights (optional, defaults shown)
+      - Memory__SimilarityWeight=1.0
+      - Memory__ImportanceWeight=0.5
+      - Memory__RecencyWeight=0.3
+      # Deduplication (optional)
+      - Memory__EnableDeduplication=true
+      - Memory__DeduplicationMode=mark
+      - Memory__DeduplicationThreshold=0.85
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s

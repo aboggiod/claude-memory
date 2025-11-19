@@ -3,9 +3,11 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.OpenApi.Models;
+using Microsoft.Extensions.Options;
 using ClaudeMemoryApi.Models;
 using ClaudeMemoryApi.Storage;
 using ClaudeMemoryApi.Services;
+using ClaudeMemoryApi.Configuration;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,17 +18,67 @@ builder.Services.AddSwaggerGen(c =>
     {
         Title = "Claude Memory API",
         Version = "v1",
-        Description = "Persistent memory storage for Claude conversations with tagging, context, and full CRUD operations."
+        Description = "Production-grade persistent memory storage for Claude conversations with advanced indexing, deduplication, lifecycle management, and compression."
     });
 });
 
 builder.Services.AddCors();
 
-// Register storage and services
-// Using the same file path as the original implementation
-var claudeFilePath = "C:\\Temp\\ai-memory\\claude.jsonl";
-builder.Services.AddSingleton<IMemoryStore>(sp => new JsonLinesMemoryStore(claudeFilePath));
+// ============================================================================
+// Configuration
+// ============================================================================
+
+builder.Services.Configure<MemoryOptions>(
+    builder.Configuration.GetSection("Memory"));
+
+// ============================================================================
+// Storage and Services Registration
+// ============================================================================
+
+builder.Services.AddSingleton<IMemoryStore>(sp =>
+{
+    var options = sp.GetRequiredService<IOptions<MemoryOptions>>().Value;
+
+    if (options.StorageEngine.Equals("wal", StringComparison.OrdinalIgnoreCase))
+    {
+        // Advanced WAL-based storage
+        return new WalMemoryStore(
+            options.DataDirectory,
+            options.WalMaxOperationsBeforeCompaction,
+            options.WalMaxBytesBeforeCompaction);
+    }
+    else
+    {
+        // Simple single-file storage (backward compatible)
+        var filePath = options.GetMainFilePath();
+        return new JsonLinesMemoryStore(filePath);
+    }
+});
+
+builder.Services.AddSingleton<IInternalMemoryStore>(sp =>
+    sp.GetRequiredService<IMemoryStore>() as IInternalMemoryStore
+    ?? throw new InvalidOperationException("Storage must implement IInternalMemoryStore"));
+
+// Services
 builder.Services.AddSingleton<IMemoryQueryService, MemoryQueryService>();
+builder.Services.AddSingleton<IMemoryLifecycleService, MemoryLifecycleService>();
+
+builder.Services.AddSingleton<IDeduplicationService>(sp =>
+{
+    var options = sp.GetRequiredService<IOptions<MemoryOptions>>().Value;
+    var store = sp.GetRequiredService<IInternalMemoryStore>();
+
+    var dedupOptions = new DeduplicationOptions
+    {
+        EnableDeduplication = options.EnableDeduplication,
+        DeduplicationMode = options.DeduplicationMode,
+        DeduplicationThreshold = options.DeduplicationThreshold
+    };
+
+    return new DeduplicationService(store, dedupOptions);
+});
+
+builder.Services.AddSingleton<ICompressionService, CompressionService>();
 
 var app = builder.Build();
 
@@ -87,12 +139,15 @@ app.MapGet("/", () =>
     .WithTags("memory-api")
     .Produces<object>(200);
 
-app.MapPost("/memory", async ([FromBody] CreateMemoryRequest req, IMemoryStore store) =>
+app.MapPost("/memory", async (
+    [FromBody] CreateMemoryRequest req,
+    IInternalMemoryStore store,
+    IDeduplicationService? dedupService) =>
 {
     if (string.IsNullOrWhiteSpace(req.Role) || string.IsNullOrWhiteSpace(req.Content))
         return Results.BadRequest(new { error = "role and content required" });
 
-    var record = new MemoryRecord(
+    var internalRecord = new InternalMemoryRecord(
         Id: Guid.NewGuid().ToString("N"),
         Timestamp: DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
         Role: req.Role.ToLowerInvariant(),
@@ -101,12 +156,21 @@ app.MapPost("/memory", async ([FromBody] CreateMemoryRequest req, IMemoryStore s
         Context: req.Context
     );
 
-    await store.AddAsync(record);
+    // Apply deduplication if service is available
+    InternalMemoryRecord finalRecord;
+    if (dedupService != null)
+    {
+        finalRecord = await dedupService.HandleDeduplicationAsync(internalRecord);
+    }
+    else
+    {
+        finalRecord = await store.AddInternalAsync(internalRecord);
+    }
 
-    return Results.Ok(new { status = "ok", id = record.Id, timestamp = record.Timestamp });
+    return Results.Ok(new { status = "ok", id = finalRecord.Id, timestamp = finalRecord.Timestamp });
 })
 .WithName("CreateMemory")
-.WithDescription("Store a new memory with role, content, tags, and optional context")
+.WithDescription("Store a new memory with role, content, tags, and optional context. Automatic deduplication if enabled.")
 .WithTags("memory-api")
 .Accepts<CreateMemoryRequest>("application/json")
 .Produces<object>(200)
@@ -120,6 +184,7 @@ app.MapGet("/memory", async (
     [FromQuery] string? context,
     [FromQuery] string? content,
     [FromQuery] int limit,
+    [FromQuery] bool includeExpired,
     IMemoryQueryService queryService) =>
 {
     // Preserve default limit behavior
@@ -132,13 +197,14 @@ app.MapGet("/memory", async (
         tags: tags,
         context: context,
         content: content,
-        limit: limit
+        limit: limit,
+        includeExpired: includeExpired
     );
 
     return Results.Ok(filtered);
 })
 .WithName("GetMemories")
-.WithDescription("Retrieve memories with optional filters: since, before, role, tags, context, content keywords, and limit")
+.WithDescription("Retrieve memories with optional filters: since, before, role, tags, context, content keywords, limit, and includeExpired")
 .WithTags("memory-api")
 .Produces<List<MemoryRecord>>(200);
 
@@ -217,6 +283,36 @@ app.MapDelete("/memory/all", async (IMemoryStore store) =>
 .WithDescription("Nuclear option: delete all memories")
 .WithTags("memory-api")
 .Produces<object>(200);
+
+// ============================================================================
+// NEW ENDPOINT: Compression/Summarization
+// ============================================================================
+
+app.MapPost("/memory/compress", async (
+    [FromBody] CompressMemoriesRequest req,
+    ICompressionService compressionService) =>
+{
+    try
+    {
+        var summary = await compressionService.CompressMemoriesAsync(req);
+        return Results.Ok(summary);
+    }
+    catch (ArgumentException ex)
+    {
+        return Results.BadRequest(new { error = ex.Message });
+    }
+    catch (InvalidOperationException ex)
+    {
+        return Results.NotFound(new { error = ex.Message });
+    }
+})
+.WithName("CompressMemories")
+.WithDescription("Compress/summarize multiple memories into a single summary memory. Uses deterministic heuristics (no external LLM).")
+.WithTags("memory-api")
+.Accepts<CompressMemoriesRequest>("application/json")
+.Produces<MemoryRecord>(200)
+.Produces<object>(400)
+.Produces<object>(404);
 
 app.Urls.Add("http://0.0.0.0:5000");
 app.Run();
