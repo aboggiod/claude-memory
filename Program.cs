@@ -129,14 +129,6 @@ app.UseAuthorization();
 // =========================
 // AUTH CODE STORE (PKCE)
 // =========================
-record AuthCode(
-    string Code,
-    string CodeChallenge,
-    string State,
-    string RedirectUri,
-    DateTime ExpiresAt
-);
-
 var authCodes = new ConcurrentDictionary<string, AuthCode>();
 
 // Cleanup expired auth codes periodically
@@ -1515,3 +1507,14 @@ Console.WriteLine($"Issuer: {ISSUER}");
 Console.WriteLine($"Audience: {AUDIENCE}");
 
 app.Run();
+
+// =========================
+// TYPE DECLARATIONS (Must be after all top-level statements)
+// =========================
+record AuthCode(
+    string Code,
+    string CodeChallenge,
+    string State,
+    string RedirectUri,
+    DateTime ExpiresAt
+);
