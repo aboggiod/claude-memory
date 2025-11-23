@@ -143,17 +143,6 @@ var cleanupTimer = new Timer(_ =>
 }, null, TimeSpan.FromMinutes(1), TimeSpan.FromMinutes(1));
 
 // =========================
-// HELPER: Base64Url Encoding (RFC 7636 §3 / RFC 4648 §5)
-// =========================
-static string Base64UrlEncode(byte[] input)
-{
-    return Convert.ToBase64String(input)
-        .TrimEnd('=')
-        .Replace('+', '-')
-        .Replace('/', '_');
-}
-
-// =========================
 // JWKS ENDPOINT (RFC 7517)
 // =========================
 app.MapGet("/.well-known/jwks.json", () =>
@@ -711,6 +700,28 @@ app.MapDelete("/").RequireAuthorization(async ctx =>
     }
     ctx.Response.StatusCode = 200;
 });
+
+// =========================
+// FINAL RUN
+// =========================
+Console.WriteLine($"Starting {SERVICE_NAME} v3.0 on http://0.0.0.0:5001");
+Console.WriteLine($"Issuer: {ISSUER}");
+Console.WriteLine($"Audience: {AUDIENCE}");
+
+app.Run();
+
+// =========================
+// LOCAL FUNCTIONS (Must be after all top-level statements)
+// =========================
+
+// HELPER: Base64Url Encoding (RFC 7636 §3 / RFC 4648 §5)
+static string Base64UrlEncode(byte[] input)
+{
+    return Convert.ToBase64String(input)
+        .TrimEnd('=')
+        .Replace('+', '-')
+        .Replace('/', '_');
+}
 
 // =========================
 // TOOL IMPLEMENTATIONS - KEY-VALUE STORE
@@ -1500,16 +1511,7 @@ JsonObject FrictionResolve(JsonObject args)
 }
 
 // =========================
-// FINAL RUN
-// =========================
-Console.WriteLine($"Starting {SERVICE_NAME} v3.0 on http://0.0.0.0:5001");
-Console.WriteLine($"Issuer: {ISSUER}");
-Console.WriteLine($"Audience: {AUDIENCE}");
-
-app.Run();
-
-// =========================
-// TYPE DECLARATIONS (Must be after all top-level statements)
+// TYPE DECLARATIONS (Must be after all local functions)
 // =========================
 record AuthCode(
     string Code,
