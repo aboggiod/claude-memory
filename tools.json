@@ -1,0 +1,339 @@
+{
+  "tools": [
+    {
+      "name": "store_memory",
+      "description": "Store a key-value pair in persistent memory",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Unique identifier for the memory"
+          },
+          "value": {
+            "type": "string",
+            "description": "Content to store"
+          }
+        },
+        "required": ["key", "value"]
+      }
+    },
+    {
+      "name": "retrieve_memory",
+      "description": "Retrieve a stored memory by key",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Key of the memory to retrieve"
+          }
+        },
+        "required": ["key"]
+      }
+    },
+    {
+      "name": "list_keys",
+      "description": "List all stored memory keys, optionally filtered by prefix",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "prefix": {
+            "type": "string",
+            "description": "Optional prefix to filter keys"
+          }
+        }
+      }
+    },
+    {
+      "name": "delete_memory",
+      "description": "Delete a memory by key",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Key of the memory to delete"
+          }
+        },
+        "required": ["key"]
+      }
+    },
+    {
+      "name": "search_memory",
+      "description": "Search for memories by query string in keys, values, or both",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query string"
+          },
+          "search_in": {
+            "type": "string",
+            "enum": ["keys", "values", "both"],
+            "description": "Where to search (default: both)"
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "store_thread_entry",
+      "description": "Add an entry to a conversation thread with automatic linking",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "description": "Thread identifier"
+          },
+          "content": {
+            "type": "string",
+            "description": "Entry content"
+          },
+          "entry_type": {
+            "type": "string",
+            "enum": ["thought", "journal", "decision", "note", "task"],
+            "description": "Type of entry (default: thought)"
+          },
+          "title": {
+            "type": "string",
+            "description": "Optional thread title (only for first entry)"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Optional tags for categorization"
+          }
+        },
+        "required": ["thread_id", "content"]
+      }
+    },
+    {
+      "name": "get_thread",
+      "description": "Retrieve all entries from a thread",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "description": "Thread identifier"
+          },
+          "limit": {
+            "type": "integer",
+            "description": "Maximum number of entries to return"
+          }
+        },
+        "required": ["thread_id"]
+      }
+    },
+    {
+      "name": "list_threads",
+      "description": "List all threads with optional filtering by status and category",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["active", "archived", "resolved"],
+            "description": "Filter by thread status"
+          },
+          "category": {
+            "type": "string",
+            "description": "Filter by category"
+          }
+        }
+      }
+    },
+    {
+      "name": "add_tags",
+      "description": "Add tags to an existing entry",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "entry_id": {
+            "type": "integer",
+            "description": "Entry ID to tag"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Tags to add"
+          }
+        },
+        "required": ["entry_id", "tags"]
+      }
+    },
+    {
+      "name": "search_entries",
+      "description": "Search entries by content, date range, and tags",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "query": {
+            "type": "string",
+            "description": "Search query for content"
+          },
+          "date_from": {
+            "type": "string",
+            "description": "ISO 8601 date string for start of range"
+          },
+          "date_to": {
+            "type": "string",
+            "description": "ISO 8601 date string for end of range"
+          },
+          "tags": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Filter by tags"
+          }
+        },
+        "required": ["query"]
+      }
+    },
+    {
+      "name": "journal_entry",
+      "description": "Create a daily journal entry (auto-creates thread for today)",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "content": {
+            "type": "string",
+            "description": "Journal entry content"
+          }
+        },
+        "required": ["content"]
+      }
+    },
+    {
+      "name": "recent_entries",
+      "description": "Get recent entries across all or specific thread",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "limit": {
+            "type": "integer",
+            "description": "Number of entries to return (default: 20)"
+          },
+          "thread_id": {
+            "type": "string",
+            "description": "Optional thread filter"
+          }
+        }
+      }
+    },
+    {
+      "name": "update_entry",
+      "description": "Update the content of an existing entry",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "entry_id": {
+            "type": "integer",
+            "description": "Entry ID to update"
+          },
+          "new_content": {
+            "type": "string",
+            "description": "New content for the entry"
+          }
+        },
+        "required": ["entry_id", "new_content"]
+      }
+    },
+    {
+      "name": "update_thread_metadata",
+      "description": "Update thread status, category, or title",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "description": "Thread identifier"
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "archived", "resolved"],
+            "description": "New status"
+          },
+          "category": {
+            "type": "string",
+            "description": "New category"
+          },
+          "title": {
+            "type": "string",
+            "description": "New title"
+          }
+        },
+        "required": ["thread_id"]
+      }
+    },
+    {
+      "name": "friction_log",
+      "description": "Log a development friction point or issue",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string",
+            "description": "Description of the friction point"
+          },
+          "category": {
+            "type": "string",
+            "enum": ["unspecified", "tooling", "documentation", "api", "infrastructure", "workflow", "other"],
+            "description": "Category of friction (default: unspecified)"
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "critical"],
+            "description": "Severity level (default: medium)"
+          }
+        },
+        "required": ["description"]
+      }
+    },
+    {
+      "name": "friction_review",
+      "description": "Review logged friction points with filtering",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["unresolved", "resolved", "wont-fix", "all"],
+            "description": "Filter by status (default: unresolved)"
+          },
+          "severity": {
+            "type": "string",
+            "enum": ["low", "medium", "high", "critical"],
+            "description": "Filter by severity"
+          }
+        }
+      }
+    },
+    {
+      "name": "friction_resolve",
+      "description": "Mark a friction point as resolved with solution",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "friction_id": {
+            "type": "integer",
+            "description": "ID of friction point to resolve"
+          },
+          "solution": {
+            "type": "string",
+            "description": "Description of how it was resolved"
+          }
+        },
+        "required": ["friction_id", "solution"]
+      }
+    }
+  ]
+}
